@@ -2,6 +2,12 @@
 #SingleInstance Force
 #Include JKUtility.ahk
 
+; 이벤트 enum
+class EventType
+{
+    static SUBMIT => 0
+}
+
 ; wmp 와 같은 파일에 등급 매기기 기능
 class JKWinShellRating
 {
@@ -19,11 +25,19 @@ class JKWinShellRating
     ; 메인 gui
     static gui := 0
 
+    
+
+    ; 이벤트 타입 맵
+    static eventMap := Map(
+        EventType.SUBMIT, this.Submit.Bind(this)
+    )
+
     ; MARK: 함수 영역
 
     static BeginPlay()
     {
         this.gui := RatingGUI()
+        this.gui.eventDel.Push(this.EventDispatcher.Bind(this))
     }
 
     ; 경로와 별점으로 파일에 등급 매기기
@@ -72,11 +86,39 @@ class JKWinShellRating
 
         return true
     }
+
+    static EventDispatcher(eventType, params*)
+    {
+        if(this.eventMap.Has(eventType))
+        {
+            this.eventMap[eventType](params*)
+        }
+    }
+
+    static Submit(fullPath, selectIdx, *)
+    {
+        if (!fullPath || !FileExist(fullPath))
+        {
+            JKUtility.JKTooltip("파일을 먼저 선택해주세요.", 1500)
+            return
+        }
+
+        stars := selectIdx - 1
+
+
+        success := this.SetRating(fullPath, stars)
+        if (success)
+            JKUtility.JKTooltip("등급이 성공적으로 반영되었습니다!", 1500)
+        else
+            JKUtility.JKTooltip("등급 설정에 실패했습니다.", 1500)
+    }
 }
 
 class RatingGUI
 {
-    ; @@ 처리를 gui에서 단독으로 하는거 검토 필요
+    ; 이벤트 딜리게이트
+    eventDel := []
+
     __New()
     {
         this.gui := Gui(, "JKWinShellRating")
@@ -98,28 +140,18 @@ class RatingGUI
 
     OnBrowseClick()
     {
-        selectedFile := FileSelect(3, , "미디어 파일 선택", "Media Files (*.mp4; *.mp3; *.mkv; *.wma)")
-        if (selectedFile)
-            this.editFile.Value := selectedFile
+        selectFile := FileSelect(3, , "미디어 파일 선택", "Media Files (*.mp4; *.mp3; *.mkv; *.wma)")
+        if (selectFile)
+            this.editFile.Value := selectFile
     }
 
     OnSubmitClick()
     {
         filePath := Trim(this.editFile.Value, '"')
-        if (!filePath || !FileExist(filePath))
-        {
-            JKUtility.JKTooltip("파일을 먼저 선택해주세요.", 1500)
-            return
-        }
+        selectIdx := this.ddlRating.Value
 
-        selectedIdx := this.ddlRating.Value
-        stars := selectedIdx - 1
-
-        success := JKWinShellRating.SetRating(filePath, stars)
-        if (success)
-            JKUtility.JKTooltip("등급이 성공적으로 반영되었습니다!", 1500)
-        else
-            JKUtility.JKTooltip("등급 설정에 실패했습니다.", 1500)
+        ; submit 이벤트 처리
+        JKUtility.CallMulticastDel(this.eventDel, EventType.SUBMIT, filePath, selectIdx)
     }
 }
 
