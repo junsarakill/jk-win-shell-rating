@@ -12,7 +12,10 @@ class EventType
 class JKWinShellRating
 {
     ; MARK: 변수 영역
-    ; 별점 값 window 스타일 매핑
+    /**
+     * #### 등급 값 파일탐색기 스타일 매핑
+     * @type {Map<Number, Number>} 
+     */
     static RATING_MAP := Map(
         0, 0,
         1, 1,
@@ -22,25 +25,38 @@ class JKWinShellRating
         5, 99
     )
 
-    ; 메인 gui
+    /**
+     * #### 메인 gui
+     * @type {Gui} 
+     */
     static gui := 0
 
-    
-
-    ; 이벤트 타입 맵
+    /**
+     * #### 이벤트 타입과 처리 함수 바인딩 맵
+     * @type {Map<EventType, BoundFunc>} 
+     */
     static eventMap := Map(
         EventType.SUBMIT, this.Submit.Bind(this)
     )
 
     ; MARK: 함수 영역
 
+    /**
+     * #### 시작 함수
+     * @description gui 생성 및 딜리게이트 바인딩
+     * @returns {void} - 
+     */
     static BeginPlay()
     {
-        this.gui := RatingGUI()
-        this.gui.eventDel.Push(this.EventDispatcher.Bind(this))
+        this.gui := RatingGUI(this.EventDispatcher.Bind(this))
     }
 
-    ; 경로와 별점으로 파일에 등급 매기기
+    /**
+     * #### 파일에 등급 매기기
+     * @param {String} fullPath - 파일 전체 경로
+     * @param {Number} stars - 등급 점수
+     * @returns {Bool} - 성공 여부
+     */
     static SetRating(fullPath, stars)
     {
         ratingValue := this.RATING_MAP.Has(stars) ? this.RATING_MAP[stars] : 0
@@ -87,16 +103,28 @@ class JKWinShellRating
         return true
     }
 
+    /**
+     * #### gui 이벤트 분리 처리
+     * @param {EventType} eventType - 이벤트 종류 enum
+     * @param {Any[]} params - 이벤트에 따른 매개변수들
+     * @returns {void} - 
+     */                 
     static EventDispatcher(eventType, params*)
     {
         if(this.eventMap.Has(eventType))
-        {
             this.eventMap[eventType](params*)
-        }
     }
 
-    static Submit(fullPath, selectIdx, *)
+    /**
+     * #### 입력 제출 이벤트
+     * @param {String} fullPath - 파일 전체 경로
+     * @param {Number} selectIdx - 등급 idx
+     * @param {Any[]} * - 안쓰는 매개변수
+     * @returns {void} - 
+     */
+    static Submit(fullPath, selectIdx)
     {
+        ; @@ 처리가 오래걸려서 응답없음 나올 수 있는데, 그러지 않게 비동기 처리하기
         if (!fullPath || !FileExist(fullPath))
         {
             JKUtility.JKTooltip("파일을 먼저 선택해주세요.", 1500)
@@ -104,7 +132,6 @@ class JKWinShellRating
         }
 
         stars := selectIdx - 1
-
 
         success := this.SetRating(fullPath, stars)
         if (success)
@@ -116,10 +143,18 @@ class JKWinShellRating
 
 class RatingGUI
 {
-    ; 이벤트 딜리게이트
+    /**
+     * #### 이벤트 딜리게이트
+     * @type {Array<BoundFunc>} 
+     */
     eventDel := []
 
-    __New()
+    /**
+     * #### 생성자
+     * @param {BoundFunc} eventCallback - 이벤트 반환용 바인딩 함수
+     * @returns {void} - 
+     */
+    __New(eventCallback := 0)
     {
         this.gui := Gui(, "JKWinShellRating")
         this.gui.SetFont("s10", "Segoe UI")
@@ -135,9 +170,17 @@ class RatingGUI
         this.btnSubmit := this.gui.Add("Button", "y+20 w300 Default", "적용하기")
         this.btnSubmit.OnEvent("Click", (*) => this.OnSubmitClick())
 
+        ; 이벤트 콜백 주입
+        if(eventCallback)
+            this.eventDel.Push(eventCallback)
+
         this.gui.Show()
     }
 
+    /**
+     * #### 파일 선택 이벤트
+     * @returns {void} - 
+     */
     OnBrowseClick()
     {
         selectFile := FileSelect(3, , "미디어 파일 선택", "Media Files (*.mp4; *.mp3; *.mkv; *.wma)")
@@ -145,6 +188,10 @@ class RatingGUI
             this.editFile.Value := selectFile
     }
 
+    /**
+     * #### 입력 제출 이벤트
+     * @returns {void} 
+     */
     OnSubmitClick()
     {
         filePath := Trim(this.editFile.Value, '"')
